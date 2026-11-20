@@ -1,544 +1,676 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ระบบบริหารจัดการคำสั่งซื้อและคลังสินค้าหน้าร้าน</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ระบบ POS & คลังสินค้า</title>
+<style>
+:root{
+  --primary:#1a237e;--primary-light:#3949ab;--primary-dark:#0d1b6e;
+  --success:#2e7d32;--warning:#e65100;--error:#c62828;--info:#0277bd;
+  --bg:#f0f2f5;--surface:#fff;--border:#e0e0e0;
+  --text:#212121;--text-muted:#757575;
+  --shadow:0 2px 8px rgba(0,0,0,.12);
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-  <!-- MUI + React CDN -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/@mui/material@5.16.7/umd/material-ui.production.min.js"></script>
+/* ===== APPBAR ===== */
+.appbar{
+  background:linear-gradient(135deg,var(--primary),var(--primary-light));
+  color:#fff;padding:0 20px;height:60px;display:flex;align-items:center;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,.3);gap:12px
+}
+.appbar .logo{font-size:24px}
+.appbar h1{font-size:1rem;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.appbar .nav-btns{display:flex;gap:8px}
+.nav-btn{
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
+  color:#fff;padding:6px 14px;border-radius:20px;cursor:pointer;
+  font-size:.85rem;transition:.2s;display:flex;align-items:center;gap:5px
+}
+.nav-btn:hover,.nav-btn.active{background:rgba(255,255,255,.3)}
+.cart-badge{
+  background:#f44336;color:#fff;border-radius:50%;width:20px;height:20px;
+  font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center
+}
 
-  <!-- Roboto Font + Icons -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
+/* ===== LAYOUT ===== */
+.container{max-width:1300px;margin:0 auto;padding:20px;display:flex;gap:20px}
+.left-panel{flex:1;min-width:0}
+.right-panel{width:380px;flex-shrink:0}
 
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: 'Roboto', sans-serif; background: #f5f5f5; }
-    #root { min-height: 100vh; }
-    .barcode-font { font-family: 'Libre Barcode 128', cursive; font-size: 48px; letter-spacing: 2px; }
-    @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap');
-  </style>
+/* ===== SECTION TITLE ===== */
+.section-title{font-size:1.1rem;font-weight:700;color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* ===== PRODUCT GRID ===== */
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.product-card{
+  background:var(--surface);border-radius:var(--radius);overflow:hidden;
+  box-shadow:var(--shadow);border:2px solid transparent;
+  transition:transform .2s,box-shadow .2s;cursor:pointer;display:flex;flex-direction:column
+}
+.product-card:hover{transform:translateY(-4px);box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.product-card.low-stock{border-color:#ff9800}
+.product-card.inactive{opacity:.5;cursor:not-allowed}
+.product-card img{width:100%;height:120px;object-fit:cover}
+.product-info{padding:10px;flex:1}
+.product-name{font-weight:600;font-size:.85rem;margin-bottom:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.product-category{font-size:.7rem;color:var(--text-muted);background:#f5f5f5;padding:2px 7px;border-radius:10px;display:inline-block;margin-bottom:4px}
+.product-price{font-weight:700;font-size:1rem;color:var(--primary);margin-bottom:6px}
+.stock-bar-wrap{margin-bottom:2px}
+.stock-label{display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-muted);margin-bottom:3px}
+.stock-label.warning{color:#e65100}
+.progress-bar{height:6px;border-radius:3px;background:#e0e0e0;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:.3s}
+.progress-fill.green{background:#4caf50}
+.progress-fill.orange{background:#ff9800}
+.progress-fill.red{background:#f44336}
+.add-btn{
+  margin:8px 10px 10px;padding:7px;border:none;border-radius:8px;
+  background:var(--primary);color:#fff;font-size:.85rem;font-weight:600;
+  cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center;gap:5px
+}
+.add-btn:hover{background:var(--primary-light)}
+.add-btn:disabled{background:#9e9e9e;cursor:not-allowed}
+
+/* ===== CART PANEL ===== */
+.cart-panel{
+  background:var(--surface);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:16px;position:sticky;top:76px
+}
+.cart-table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:.85rem}
+.cart-table th{
+  background:var(--primary);color:#fff;padding:8px 6px;text-align:left;
+  font-weight:600
+}
+.cart-table th:last-child,.cart-table td:last-child{text-align:center}
+.cart-table td{padding:7px 6px;border-bottom:1px solid var(--border)}
+.cart-table tr:hover td{background:#f9f9f9}
+.qty-controls{display:flex;align-items:center;gap:4px;justify-content:center}
+.qty-btn{
+  width:24px;height:24px;border:1px solid var(--border);border-radius:6px;
+  background:#f5f5f5;cursor:pointer;font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;line-height:1
+}
+.qty-btn:hover{background:#e0e0e0}
+.qty-btn.del{color:var(--error);border-color:#ffcdd2;background:#fff9f9}
+.qty-btn.add-c{color:var(--success);border-color:#c8e6c9;background:#f9fff9}
+.empty-cart{text-align:center;color:var(--text-muted);padding:20px;font-size:.9rem}
+.icon-del{color:var(--error);border:none;background:none;cursor:pointer;font-size:16px;padding:2px 6px}
+.icon-del:hover{color:#b71c1c}
+
+/* ===== SUMMARY ===== */
+.summary-box{background:#f8f9fa;border-radius:10px;padding:12px;margin-bottom:12px}
+.summary-row{display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:5px;align-items:center}
+.summary-row.total{font-weight:700;font-size:1rem;color:var(--primary);border-top:1px solid var(--border);padding-top:7px;margin-top:5px}
+.summary-row.discount{color:var(--error)}
+.summary-row.vat{color:#e65100}
+
+/* ===== INPUTS ===== */
+.input-group{display:flex;gap:8px;margin-bottom:12px}
+.input-field{
+  flex:1;border:1.5px solid var(--border);border-radius:8px;
+  padding:8px 12px;font-size:.9rem;outline:none;transition:.2s;font-family:inherit
+}
+.input-field:focus{border-color:var(--primary)}
+.btn{
+  padding:8px 14px;border:none;border-radius:8px;cursor:pointer;
+  font-size:.85rem;font-weight:600;transition:.2s;font-family:inherit
+}
+.btn-outline{background:#fff;border:1.5px solid var(--primary);color:var(--primary)}
+.btn-outline:hover{background:#e8eaf6}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-light)}
+.change-box{
+  background:#e8f5e9;border-radius:8px;padding:10px 14px;
+  margin-bottom:12px;font-weight:700;color:var(--success);font-size:1.05rem
+}
+.pay-btn{
+  width:100%;padding:14px;border:none;border-radius:10px;
+  background:linear-gradient(135deg,var(--primary),var(--primary-light));
+  color:#fff;font-size:1rem;font-weight:700;cursor:pointer;
+  transition:.2s;display:flex;align-items:center;justify-content:center;gap:8px
+}
+.pay-btn:hover{opacity:.9;transform:translateY(-1px)}
+.pay-btn:active{transform:translateY(0)}
+
+/* ===== INVENTORY TAB ===== */
+.inv-container{max-width:1300px;margin:0 auto;padding:20px}
+.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius);padding:16px;
+  box-shadow:var(--shadow);border-top:4px solid;text-align:center
+}
+.stat-card .stat-icon{font-size:28px;margin-bottom:4px}
+.stat-card .stat-num{font-size:2rem;font-weight:700;line-height:1}
+.stat-card .stat-label{font-size:.8rem;color:var(--text-muted);margin-top:4px}
+.inv-table-wrap{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.inv-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.inv-table th{background:var(--primary);color:#fff;padding:12px;text-align:left;font-weight:600}
+.inv-table td{padding:11px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.inv-table tr:hover td{background:#f9f9f9}
+.inv-table tr.inactive-row td{opacity:.55}
+.product-mini{display:flex;align-items:center;gap:10px}
+.product-mini img{width:38px;height:38px;border-radius:8px;object-fit:cover}
+.chip{padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;display:inline-block}
+.chip-success{background:#e8f5e9;color:#2e7d32}
+.chip-error{background:#ffebee;color:#c62828}
+.chip-info{background:#e3f2fd;color:#1565c0}
+
+/* ===== SWITCH ===== */
+.switch{position:relative;display:inline-block;width:46px;height:24px}
+.switch input{opacity:0;width:0;height:0}
+.slider{
+  position:absolute;cursor:pointer;inset:0;background:#ccc;
+  border-radius:24px;transition:.3s
+}
+.slider:before{
+  content:"";position:absolute;width:18px;height:18px;left:3px;bottom:3px;
+  background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)
+}
+input:checked + .slider{background:#4caf50}
+input:checked + .slider:before{transform:translateX(22px)}
+
+/* ===== SNACKBAR ===== */
+.snackbar{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  padding:12px 20px;border-radius:10px;color:#fff;font-weight:600;font-size:.9rem;
+  box-shadow:0 4px 16px rgba(0,0,0,.25);transform:translateY(80px);
+  transition:transform .3s ease;max-width:340px;display:flex;align-items:center;gap:8px
+}
+.snackbar.show{transform:translateY(0)}
+.snackbar.success{background:#2e7d32}
+.snackbar.error{background:#c62828}
+.snackbar.warning{background:#e65100}
+.snackbar.info{background:#0277bd}
+
+/* ===== DIALOG ===== */
+.dialog-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;
+  display:flex;align-items:center;justify-content:center;opacity:0;
+  pointer-events:none;transition:.2s
+}
+.dialog-overlay.open{opacity:1;pointer-events:all}
+.dialog{
+  background:#fff;border-radius:16px;width:360px;overflow:hidden;
+  transform:scale(.9);transition:.2s;box-shadow:0 20px 60px rgba(0,0,0,.3)
+}
+.dialog-overlay.open .dialog{transform:scale(1)}
+.dialog-header{background:var(--primary);color:#fff;padding:20px;text-align:center}
+.dialog-header .check-icon{font-size:48px;display:block;margin-bottom:4px}
+.dialog-header h2{font-size:1.2rem}
+.dialog-body{padding:20px;text-align:center}
+.dialog-total{font-size:1.3rem;font-weight:700;color:var(--primary);margin-bottom:8px}
+.dialog-received{font-size:1rem;margin-bottom:4px}
+.dialog-change{font-size:1.6rem;font-weight:700;color:var(--success);margin:8px 0}
+.barcode{
+  margin:14px auto;padding:14px 10px 8px;border:1px solid #ddd;border-radius:8px;
+  background:#fff;text-align:center;max-width:260px
+}
+.barcode-lines{font-size:60px;line-height:1;letter-spacing:-2px;color:#000;font-family:monospace}
+.barcode-num{font-size:.7rem;color:var(--text-muted);letter-spacing:3px;margin-top:4px}
+.dialog-footer{padding:0 20px 20px;text-align:center}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .container{flex-direction:column}
+  .right-panel{width:100%;position:static}
+  .stat-cards{grid-template-columns:repeat(2,1fr)}
+  .cart-panel{position:static}
+}
+@media(max-width:500px){
+  .product-grid{grid-template-columns:repeat(2,1fr)}
+  .appbar h1{display:none}
+  .stat-cards{grid-template-columns:repeat(2,1fr)}
+}
+</style>
 </head>
 <body>
-  <div id="root"></div>
 
-  <script type="text/babel">
-    const {
-      AppBar, Toolbar, Typography, Badge, IconButton, Box, Grid,
-      Card, CardMedia, CardContent, CardActions, Button,
-      Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
-      Paper, Switch, TextField, Snackbar, Alert, LinearProgress,
-      Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions,
-      FormControlLabel, Tooltip, Container, Avatar
-    } = MaterialUI;
+<!-- ===== APPBAR ===== -->
+<div class="appbar">
+  <span class="logo">🏪</span>
+  <h1>ระบบบริหารจัดการคำสั่งซื้อและคลังสินค้าหน้าร้าน</h1>
+  <div class="nav-btns">
+    <button class="nav-btn active" id="btn-shop" onclick="showTab('shop')">🛍️ หน้าร้าน</button>
+    <button class="nav-btn" id="btn-inv" onclick="showTab('inventory')">📦 คลังสินค้า</button>
+    <div style="display:flex;align-items:center;gap:5px;margin-left:4px">
+      <span style="font-size:1.2rem">🛒</span>
+      <span class="cart-badge" id="cart-badge">0</span>
+    </div>
+  </div>
+</div>
 
-    // ============ ข้อมูลสินค้าเริ่มต้น ============
-    const initialProducts = [
-      { id: 1, name: "โค้กขวด 500ml", price: 25, stock: 30, image: "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=200&q=80", active: true, category: "เครื่องดื่ม" },
-      { id: 2, name: "น้ำดื่มตราช้าง", price: 10, stock: 4, image: "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=200&q=80", active: true, category: "เครื่องดื่ม" },
-      { id: 3, name: "มาม่าต้มยำ", price: 7, stock: 50, image: "https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?w=200&q=80", active: true, category: "อาหาร" },
-      { id: 4, name: "ขนมปังแซนวิช", price: 35, stock: 3, image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&q=80", active: false, category: "อาหาร" },
-      { id: 5, name: "ลูกอมสตรอเบอร์รี่", price: 5, stock: 2, image: "https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=200&q=80", active: true, category: "ขนม" },
-      { id: 6, name: "กาแฟกระป๋อง", price: 20, stock: 15, image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&q=80", active: true, category: "เครื่องดื่ม" },
-      { id: 7, name: "คิทแคทช็อกโกแลต", price: 30, stock: 8, image: "https://images.unsplash.com/photo-1575377427642-087cf684f29d?w=200&q=80", active: true, category: "ขนม" },
-      { id: 8, name: "มันฝรั่งทอด", price: 20, stock: 1, image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&q=80", active: true, category: "ขนม" },
-    ];
+<!-- ===== SHOP TAB ===== -->
+<div id="tab-shop">
+  <div class="container">
 
-    const DISCOUNT_CODES = { "SALE10": 10, "LUCKY20": 20, "VIP50": 50 };
-    const VAT_RATE = 0.07;
-    const LOW_STOCK_THRESHOLD = 5;
+    <!-- Products -->
+    <div class="left-panel">
+      <div class="section-title">🛍️ สินค้า <span id="product-count" style="font-size:.85rem;font-weight:400;color:var(--text-muted)"></span></div>
+      <div class="product-grid" id="product-grid"></div>
+    </div>
 
-    // ============ MAIN APP ============
-    function App() {
-      const [products, setProducts] = React.useState(initialProducts);
-      const [cart, setCart] = React.useState([]);
-      const [discountCode, setDiscountCode] = React.useState("");
-      const [appliedDiscount, setAppliedDiscount] = React.useState(0);
-      const [receivedAmount, setReceivedAmount] = React.useState("");
-      const [snackbar, setSnackbar] = React.useState({ open: false, msg: "", severity: "success" });
-      const [payDialog, setPayDialog] = React.useState(false);
-      const [tab, setTab] = React.useState("shop"); // shop | inventory
+    <!-- Cart -->
+    <div class="right-panel">
+      <div class="cart-panel">
+        <div class="section-title">🛒 ตะกร้าสินค้า</div>
 
-      // ---- Cart logic ----
-      const addToCart = (product) => {
-        if (!product.active) return;
-        setCart(prev => {
-          const found = prev.find(i => i.id === product.id);
-          if (found) {
-            if (found.qty >= product.stock) {
-              setSnackbar({ open: true, msg: `สินค้า "${product.name}" หมดสต็อก!`, severity: "warning" });
-              return prev;
-            }
-            return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
-          }
-          return [...prev, { ...product, qty: 1 }];
-        });
-        setSnackbar({ open: true, msg: `เพิ่ม "${product.name}" ลงตะกร้าแล้ว ✓`, severity: "success" });
-      };
+        <div style="max-height:260px;overflow-y:auto">
+          <table class="cart-table">
+            <thead>
+              <tr>
+                <th>สินค้า</th>
+                <th style="text-align:center">จำนวน</th>
+                <th style="text-align:right">ราคา</th>
+                <th style="text-align:center">ลบ</th>
+              </tr>
+            </thead>
+            <tbody id="cart-tbody"></tbody>
+          </table>
+        </div>
 
-      const removeFromCart = (id) => setCart(prev => {
-        const found = prev.find(i => i.id === id);
-        if (found && found.qty > 1) return prev.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i);
-        return prev.filter(i => i.id !== id);
-      });
+        <div style="height:1px;background:var(--border);margin:12px 0"></div>
 
-      const deleteFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
+        <!-- Discount -->
+        <div class="input-group">
+          <input class="input-field" id="discount-input" type="text" placeholder="โค้ดส่วนลด (SALE10, LUCKY20, VIP50)"/>
+          <button class="btn btn-outline" onclick="applyDiscount()">ใช้โค้ด</button>
+        </div>
 
-      const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-      const discountAmount = (cartTotal * appliedDiscount) / 100;
-      const afterDiscount = cartTotal - discountAmount;
-      const vatAmount = afterDiscount * VAT_RATE;
-      const grandTotal = afterDiscount + vatAmount;
-      const change = parseFloat(receivedAmount) - grandTotal;
-      const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+        <!-- Summary -->
+        <div class="summary-box">
+          <div class="summary-row"><span>ราคารวม</span><span id="s-subtotal">฿0.00</span></div>
+          <div class="summary-row discount" id="s-discount-row" style="display:none">
+            <span id="s-discount-label">ส่วนลด</span>
+            <span id="s-discount-val">-฿0.00</span>
+          </div>
+          <div class="summary-row"><span>หลังหักส่วนลด</span><span id="s-after">฿0.00</span></div>
+          <div class="summary-row vat"><span>VAT 7%</span><span id="s-vat">฿0.00</span></div>
+          <div class="summary-row total"><span>ยอดรวมสุทธิ</span><span id="s-grand">฿0.00</span></div>
+        </div>
 
-      const applyDiscount = () => {
-        const pct = DISCOUNT_CODES[discountCode.trim().toUpperCase()];
-        if (pct) {
-          setAppliedDiscount(pct);
-          setSnackbar({ open: true, msg: `ใช้โค้ด ${discountCode.toUpperCase()} ลด ${pct}% สำเร็จ! 🎉`, severity: "success" });
-        } else {
-          setSnackbar({ open: true, msg: "โค้ดส่วนลดไม่ถูกต้อง", severity: "error" });
-        }
-      };
+        <!-- Received -->
+        <input class="input-field" id="received-input" type="number" min="0" placeholder="จำนวนเงินที่รับ (บาท)" style="width:100%;margin-bottom:10px" oninput="updateChange()"/>
 
-      const toggleProduct = (id) => setProducts(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+        <div class="change-box" id="change-box" style="display:none">
+          💵 เงินทอน: <span id="change-val">฿0.00</span>
+        </div>
 
-      const handlePay = () => {
-        if (cart.length === 0) { setSnackbar({ open: true, msg: "ตะกร้าว่างเปล่า!", severity: "warning" }); return; }
-        if (!receivedAmount || parseFloat(receivedAmount) < grandTotal) {
-          setSnackbar({ open: true, msg: "จำนวนเงินที่รับไม่เพียงพอ", severity: "error" }); return;
-        }
-        // ตัดสต็อก
-        setProducts(prev => prev.map(p => {
-          const ci = cart.find(c => c.id === p.id);
-          return ci ? { ...p, stock: p.stock - ci.qty } : p;
-        }));
-        setPayDialog(true);
-      };
+        <button class="pay-btn" onclick="handlePay()">
+          💳 ชำระเงิน <span id="pay-amount">฿0.00</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
-      const finishPay = () => {
-        setCart([]); setDiscountCode(""); setAppliedDiscount(0); setReceivedAmount("");
-        setPayDialog(false);
-        setSnackbar({ open: true, msg: "ชำระเงินสำเร็จ! ขอบคุณที่ใช้บริการ 🎉", severity: "success" });
-      };
+<!-- ===== INVENTORY TAB ===== -->
+<div id="tab-inventory" style="display:none">
+  <div class="inv-container">
+    <div class="section-title">📦 จัดการคลังสินค้า</div>
 
-      // ============ UI ============
-      return (
-        <Box sx={{ flexGrow: 1 }}>
-          {/* ===== AppBar ===== */}
-          <AppBar position="sticky" sx={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}>
-            <Toolbar>
-              <span className="material-icons" style={{ marginRight: 8, fontSize: 28 }}>storefront</span>
-              <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, fontSize: { xs: "0.9rem", sm: "1.1rem" } }}>
-                ระบบ POS &amp; คลังสินค้าหน้าร้าน
-              </Typography>
-              <Tooltip title="สินค้าในร้าน">
-                <Button color={tab==="shop"?"inherit":"default"} onClick={()=>setTab("shop")}
-                  sx={{ color:"white", fontWeight: tab==="shop"?"bold":"normal", mr:1, fontSize:{xs:"0.75rem",sm:"0.9rem"} }}
-                  startIcon={<span className="material-icons">shopping_bag</span>}>
-                  หน้าร้าน
-                </Button>
-              </Tooltip>
-              <Tooltip title="จัดการคลังสินค้า">
-                <Button color={tab==="inventory"?"inherit":"default"} onClick={()=>setTab("inventory")}
-                  sx={{ color:"white", fontWeight: tab==="inventory"?"bold":"normal", mr:2, fontSize:{xs:"0.75rem",sm:"0.9rem"} }}
-                  startIcon={<span className="material-icons">inventory_2</span>}>
-                  คลังสินค้า
-                </Button>
-              </Tooltip>
-              <Tooltip title="ตะกร้าสินค้า">
-                <IconButton color="inherit" onClick={()=>setTab("shop")}>
-                  <Badge badgeContent={cartCount} color="error">
-                    <span className="material-icons">shopping_cart</span>
-                  </Badge>
-                </IconButton>
-              </Tooltip>
-            </Toolbar>
-          </AppBar>
+    <!-- Stat Cards -->
+    <div class="stat-cards">
+      <div class="stat-card" style="border-color:var(--primary)">
+        <div class="stat-icon">📦</div>
+        <div class="stat-num" id="st-total" style="color:var(--primary)">0</div>
+        <div class="stat-label">สินค้าทั้งหมด</div>
+      </div>
+      <div class="stat-card" style="border-color:var(--success)">
+        <div class="stat-icon">🟢</div>
+        <div class="stat-num" id="st-active" style="color:var(--success)">0</div>
+        <div class="stat-label">เปิดขาย</div>
+      </div>
+      <div class="stat-card" style="border-color:var(--error)">
+        <div class="stat-icon">🔴</div>
+        <div class="stat-num" id="st-inactive" style="color:var(--error)">0</div>
+        <div class="stat-label">ปิดขาย</div>
+      </div>
+      <div class="stat-card" style="border-color:var(--warning)">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-num" id="st-lowstock" style="color:var(--warning)">0</div>
+        <div class="stat-label">สต็อกใกล้หมด</div>
+      </div>
+    </div>
 
-          <Container maxWidth="xl" sx={{ py: 3 }}>
-            {tab === "shop" ? (
-              <ShopTab
-                products={products} cart={cart}
-                addToCart={addToCart} removeFromCart={removeFromCart} deleteFromCart={deleteFromCart}
-                discountCode={discountCode} setDiscountCode={setDiscountCode}
-                appliedDiscount={appliedDiscount} applyDiscount={applyDiscount}
-                receivedAmount={receivedAmount} setReceivedAmount={setReceivedAmount}
-                cartTotal={cartTotal} discountAmount={discountAmount}
-                afterDiscount={afterDiscount} vatAmount={vatAmount}
-                grandTotal={grandTotal} change={change} handlePay={handlePay}
-              />
-            ) : (
-              <InventoryTab products={products} toggleProduct={toggleProduct} />
-            )}
-          </Container>
+    <!-- Inventory Table -->
+    <div class="inv-table-wrap">
+      <table class="inv-table">
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>หมวดหมู่</th>
+            <th style="text-align:right">ราคา</th>
+            <th style="text-align:center;min-width:160px">สต็อกคงเหลือ</th>
+            <th style="text-align:center">สถานะ</th>
+            <th style="text-align:center">เปิด/ปิดขาย</th>
+          </tr>
+        </thead>
+        <tbody id="inv-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
-          {/* ===== Snackbar ===== */}
-          <Snackbar open={snackbar.open} autoHideDuration={3000}
-            onClose={()=>setSnackbar(s=>({...s,open:false}))}
-            anchorOrigin={{ vertical:"bottom", horizontal:"right" }}>
-            <Alert severity={snackbar.severity} variant="filled" sx={{ width:"100%" }}>
-              {snackbar.msg}
-            </Alert>
-          </Snackbar>
+<!-- ===== SNACKBAR ===== -->
+<div class="snackbar" id="snackbar"></div>
 
-          {/* ===== Pay Success Dialog ===== */}
-          <Dialog open={payDialog} onClose={finishPay} maxWidth="xs" fullWidth>
-            <DialogTitle sx={{ textAlign:"center", bgcolor:"#1a237e", color:"white" }}>
-              <span className="material-icons" style={{fontSize:48,display:"block"}}>check_circle</span>
-              ชำระเงินสำเร็จ!
-            </DialogTitle>
-            <DialogContent sx={{ pt:3, textAlign:"center" }}>
-              <Typography variant="h5" color="primary" fontWeight={700}>ยอดรวม: ฿{grandTotal.toFixed(2)}</Typography>
-              <Typography variant="h6" sx={{mt:1}}>รับเงิน: ฿{parseFloat(receivedAmount||0).toFixed(2)}</Typography>
-              <Typography variant="h4" color="success.main" fontWeight={700} sx={{mt:1}}>
-                เงินทอน: ฿{change >= 0 ? change.toFixed(2) : "0.00"}
-              </Typography>
-              {/* Barcode */}
-              <Box sx={{mt:3, p:2, bgcolor:"white", borderRadius:2, border:"1px solid #ddd"}}>
-                <Typography variant="caption" color="text.secondary">ใบเสร็จ</Typography>
-                <div style={{fontFamily:"monospace", fontSize:14, letterSpacing:4, marginTop:4, overflow:"hidden"}}>
-                  {"||||| |||| ||| || |||||| ||| |||| |||||"}
-                </div>
-                <Typography variant="caption">{Date.now()}</Typography>
-              </Box>
-            </DialogContent>
-            <DialogActions sx={{ justifyContent:"center", pb:3 }}>
-              <Button variant="contained" onClick={finishPay} size="large"
-                sx={{bgcolor:"#1a237e","&:hover":{bgcolor:"#283593"}, px:5}}>
-                เสร็จสิ้น
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </Box>
-      );
-    }
+<!-- ===== PAY DIALOG ===== -->
+<div class="dialog-overlay" id="dialog-overlay">
+  <div class="dialog">
+    <div class="dialog-header">
+      <span class="check-icon">✅</span>
+      <h2>ชำระเงินสำเร็จ!</h2>
+    </div>
+    <div class="dialog-body">
+      <div class="dialog-total" id="d-total"></div>
+      <div class="dialog-received" id="d-received"></div>
+      <div class="dialog-change" id="d-change"></div>
+      <div class="barcode">
+        <div class="barcode-lines">||||||||||||||||||||||||</div>
+        <div class="barcode-num" id="d-barcode"></div>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="pay-btn" onclick="finishPay()" style="max-width:200px;margin:0 auto">เสร็จสิ้น ✓</button>
+    </div>
+  </div>
+</div>
 
-    // ============ Shop Tab ============
-    function ShopTab({ products, cart, addToCart, removeFromCart, deleteFromCart,
-      discountCode, setDiscountCode, appliedDiscount, applyDiscount,
-      receivedAmount, setReceivedAmount,
-      cartTotal, discountAmount, afterDiscount, vatAmount, grandTotal, change, handlePay }) {
+<script>
+// ============ DATA ============
+const LOW = 5;
+const VAT = 0.07;
+const DISCOUNT_CODES = { SALE10:10, LUCKY20:20, VIP50:50 };
 
-      const activeProducts = products.filter(p => p.active);
+let products = [
+  {id:1,name:"โค้กขวด 500ml",price:25,stock:30,img:"https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=200&q=80",active:true,cat:"เครื่องดื่ม"},
+  {id:2,name:"น้ำดื่มตราช้าง",price:10,stock:4,img:"https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=200&q=80",active:true,cat:"เครื่องดื่ม"},
+  {id:3,name:"มาม่าต้มยำ",price:7,stock:50,img:"https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?w=200&q=80",active:true,cat:"อาหาร"},
+  {id:4,name:"ขนมปังแซนวิช",price:35,stock:3,img:"https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&q=80",active:false,cat:"อาหาร"},
+  {id:5,name:"ลูกอมสตรอเบอร์รี่",price:5,stock:2,img:"https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=200&q=80",active:true,cat:"ขนม"},
+  {id:6,name:"กาแฟกระป๋อง",price:20,stock:15,img:"https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&q=80",active:true,cat:"เครื่องดื่ม"},
+  {id:7,name:"คิทแคทช็อกโกแลต",price:30,stock:8,img:"https://images.unsplash.com/photo-1575377427642-087cf684f29d?w=200&q=80",active:true,cat:"ขนม"},
+  {id:8,name:"มันฝรั่งทอด",price:20,stock:1,img:"https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&q=80",active:true,cat:"ขนม"},
+];
 
-      return (
-        <Grid container spacing={3}>
-          {/* ===== สินค้า ===== */}
-          <Grid item xs={12} md={7}>
-            <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color:"#1a237e" }}>
-              <span className="material-icons" style={{verticalAlign:"middle",mr:1}}>storefront</span>
-              สินค้าทั้งหมด ({activeProducts.length} รายการ)
-            </Typography>
-            <Grid container spacing={2}>
-              {activeProducts.map(p => (
-                <Grid item xs={6} sm={4} md={4} key={p.id}>
-                  <ProductCard product={p} onAdd={() => addToCart(p)} />
-                </Grid>
-              ))}
-              {activeProducts.length === 0 && (
-                <Grid item xs={12}>
-                  <Paper sx={{p:4, textAlign:"center", color:"text.secondary"}}>
-                    <span className="material-icons" style={{fontSize:48}}>inventory_2</span>
-                    <Typography>ไม่มีสินค้าที่เปิดขาย</Typography>
-                  </Paper>
-                </Grid>
-              )}
-            </Grid>
-          </Grid>
+let cart = [];
+let appliedDiscount = 0;
+let lastPayData = null;
 
-          {/* ===== ตะกร้า + ชำระเงิน ===== */}
-          <Grid item xs={12} md={5}>
-            <Paper elevation={3} sx={{ p: 2, borderRadius: 3, position:"sticky", top:80 }}>
-              <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color:"#1a237e" }}>
-                🛒 ตะกร้าสินค้า
-              </Typography>
+// ============ TAB ============
+function showTab(tab){
+  document.getElementById('tab-shop').style.display = tab==='shop'?'block':'none';
+  document.getElementById('tab-inventory').style.display = tab==='inventory'?'block':'none';
+  document.getElementById('btn-shop').classList.toggle('active', tab==='shop');
+  document.getElementById('btn-inv').classList.toggle('active', tab==='inventory');
+  if(tab==='inventory') renderInventory();
+}
 
-              {/* Cart Table */}
-              <TableContainer sx={{ maxHeight: 260 }}>
-                <Table size="small" stickyHeader>
-                  <TableHead>
-                    <TableRow sx={{"& th":{ bgcolor:"#1a237e", color:"white", fontWeight:700 }}}>
-                      <TableCell>สินค้า</TableCell>
-                      <TableCell align="center">จำนวน</TableCell>
-                      <TableCell align="right">ราคา</TableCell>
-                      <TableCell align="center">ลบ</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {cart.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} align="center" sx={{color:"text.secondary", py:3}}>
-                          ยังไม่มีสินค้าในตะกร้า
-                        </TableCell>
-                      </TableRow>
-                    ) : cart.map(item => (
-                      <TableRow key={item.id} sx={{"&:hover":{bgcolor:"#f5f5f5"}}}>
-                        <TableCell>
-                          <Typography variant="body2" noWrap sx={{maxWidth:120}}>{item.name}</Typography>
-                          <Typography variant="caption" color="text.secondary">฿{item.price}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ display:"flex", alignItems:"center", justifyContent:"center", gap:0.5 }}>
-                            <IconButton size="small" onClick={()=>removeFromCart(item.id)}
-                              sx={{color:"error.main", p:0.3}}>
-                              <span className="material-icons" style={{fontSize:16}}>remove</span>
-                            </IconButton>
-                            <Typography variant="body2" fontWeight={700} sx={{minWidth:20, textAlign:"center"}}>
-                              {item.qty}
-                            </Typography>
-                            <IconButton size="small" onClick={()=>addToCart(item)}
-                              sx={{color:"success.main", p:0.3}}>
-                              <span className="material-icons" style={{fontSize:16}}>add</span>
-                            </IconButton>
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Typography variant="body2" fontWeight={700}>
-                            ฿{(item.price * item.qty).toFixed(2)}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <IconButton size="small" onClick={()=>deleteFromCart(item.id)}
-                            sx={{color:"error.main"}}>
-                            <span className="material-icons" style={{fontSize:18}}>delete</span>
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+// ============ PRODUCTS ============
+function renderProducts(){
+  const grid = document.getElementById('product-grid');
+  const active = products.filter(p=>p.active);
+  document.getElementById('product-count').textContent = `(${active.length} รายการ)`;
 
-              <Divider sx={{ my: 2 }} />
+  if(active.length===0){
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text-muted)">📭 ไม่มีสินค้าที่เปิดขาย</div>`;
+    return;
+  }
 
-              {/* Discount Code */}
-              <Box sx={{ display:"flex", gap:1, mb:2 }}>
-                <TextField
-                  size="small" label="โค้ดส่วนลด" fullWidth
-                  value={discountCode} onChange={e=>setDiscountCode(e.target.value)}
-                  placeholder="เช่น SALE10, LUCKY20, VIP50"
-                  onKeyPress={e=>e.key==="Enter" && applyDiscount()}
-                />
-                <Button variant="outlined" onClick={applyDiscount} sx={{whiteSpace:"nowrap", minWidth:80}}>
-                  ใช้โค้ด
-                </Button>
-              </Box>
+  grid.innerHTML = active.map(p=>{
+    const isLow = p.stock <= LOW;
+    const pct = Math.min((p.stock/50)*100,100);
+    const fillClass = p.stock===0?'red':isLow?'orange':'green';
+    const inCart = cart.find(c=>c.id===p.id);
+    const disabled = p.stock===0 ? 'disabled' : '';
+    return `
+    <div class="product-card${isLow?' low-stock':''}">
+      <img src="${p.img}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/200x120/e8eaf6/1a237e?text=🏪'"/>
+      <div class="product-info">
+        <div class="product-name">${p.name}</div>
+        <span class="product-category">${p.cat}</span>
+        <div class="product-price">฿${p.price}</div>
+        <div class="stock-bar-wrap">
+          <div class="stock-label${isLow?' warning':''}">
+            <span>${isLow?'⚠️ ใกล้หมด!':'สต็อก'}</span>
+            <span>${p.stock} ชิ้น</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <button class="add-btn" onclick="addToCart(${p.id})" ${disabled}>
+        ${p.stock===0?'❌ หมด':'🛒 เพิ่ม'}${inCart?` (${inCart.qty})`:''}
+      </button>
+    </div>`;
+  }).join('');
+}
 
-              {/* Summary */}
-              <Box sx={{ bgcolor:"#f8f9fa", borderRadius:2, p:2 }}>
-                <Row label="ราคารวม" value={`฿${cartTotal.toFixed(2)}`} />
-                {appliedDiscount > 0 && (
-                  <Row label={`ส่วนลด (${appliedDiscount}%)`} value={`-฿${discountAmount.toFixed(2)}`} color="error.main" />
-                )}
-                <Row label="หลังหักส่วนลด" value={`฿${afterDiscount.toFixed(2)}`} />
-                <Row label="ภาษีมูลค่าเพิ่ม (VAT 7%)" value={`฿${vatAmount.toFixed(2)}`} color="warning.main" />
-                <Divider sx={{my:1}} />
-                <Row label="ยอดรวมสุทธิ" value={`฿${grandTotal.toFixed(2)}`} bold large color="#1a237e" />
-              </Box>
+// ============ CART ============
+function addToCart(id){
+  const p = products.find(x=>x.id===id);
+  if(!p||!p.active) return;
+  const ci = cart.find(c=>c.id===id);
+  if(ci){
+    if(ci.qty>=p.stock){ showSnack(`⚠️ "${p.name}" หมดสต็อก!`,'warning'); return; }
+    ci.qty++;
+  } else {
+    cart.push({...p,qty:1});
+  }
+  showSnack(`✅ เพิ่ม "${p.name}" ลงตะกร้าแล้ว`,'success');
+  renderAll();
+}
 
-              {/* Received Amount */}
-              <TextField
-                fullWidth size="small" label="รับเงิน (บาท)" type="number"
-                value={receivedAmount} onChange={e=>setReceivedAmount(e.target.value)}
-                sx={{ mt:2 }} inputProps={{ min:0 }}
-              />
+function changeQty(id, delta){
+  const ci = cart.find(c=>c.id===id);
+  if(!ci) return;
+  if(delta<0 && ci.qty===1){ removeFromCart(id); return; }
+  const p = products.find(x=>x.id===id);
+  if(delta>0 && ci.qty>=p.stock){ showSnack('⚠️ สินค้าหมดสต็อก!','warning'); return; }
+  ci.qty += delta;
+  renderAll();
+}
 
-              {receivedAmount && parseFloat(receivedAmount) >= grandTotal && (
-                <Box sx={{ mt:1, p:1.5, bgcolor:"#e8f5e9", borderRadius:2 }}>
-                  <Typography fontWeight={700} color="success.main" fontSize={18}>
-                    💵 เงินทอน: ฿{change.toFixed(2)}
-                  </Typography>
-                </Box>
-              )}
+function removeFromCart(id){
+  cart = cart.filter(c=>c.id!==id);
+  renderAll();
+}
 
-              <Button variant="contained" fullWidth size="large" onClick={handlePay}
-                sx={{ mt:2, py:1.5, fontWeight:700, fontSize:16,
-                  background:"linear-gradient(135deg,#1a237e,#283593)",
-                  "&:hover":{background:"linear-gradient(135deg,#283593,#1a237e)"} }}
-                startIcon={<span className="material-icons">point_of_sale</span>}>
-                ชำระเงิน ฿{grandTotal.toFixed(2)}
-              </Button>
-            </Paper>
-          </Grid>
-        </Grid>
-      );
-    }
+function renderCart(){
+  const tbody = document.getElementById('cart-tbody');
+  if(cart.length===0){
+    tbody.innerHTML=`<tr><td colspan="4" class="empty-cart">🛒 ยังไม่มีสินค้าในตะกร้า</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cart.map(item=>`
+    <tr>
+      <td><div style="font-weight:600;font-size:.82rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.name}">${item.name}</div>
+          <div style="font-size:.72rem;color:var(--text-muted)">฿${item.price}</div></td>
+      <td>
+        <div class="qty-controls">
+          <button class="qty-btn del" onclick="changeQty(${item.id},-1)">−</button>
+          <span style="font-weight:700;min-width:20px;text-align:center">${item.qty}</span>
+          <button class="qty-btn add-c" onclick="changeQty(${item.id},1)">+</button>
+        </div>
+      </td>
+      <td style="text-align:right;font-weight:700">฿${(item.price*item.qty).toFixed(2)}</td>
+      <td style="text-align:center"><button class="icon-del" onclick="removeFromCart(${item.id})" title="ลบ">🗑️</button></td>
+    </tr>`).join('');
+}
 
-    // ============ Product Card ============
-    function ProductCard({ product, onAdd }) {
-      const isLow = product.stock <= LOW_STOCK_THRESHOLD;
-      const stockPct = Math.min((product.stock / 50) * 100, 100);
+function renderSummary(){
+  const subtotal = cart.reduce((s,i)=>s+i.price*i.qty,0);
+  const discAmt = subtotal*appliedDiscount/100;
+  const afterDisc = subtotal-discAmt;
+  const vatAmt = afterDisc*VAT;
+  const grand = afterDisc+vatAmt;
 
-      return (
-        <Card elevation={2} sx={{
-          borderRadius:3, height:"100%", display:"flex", flexDirection:"column",
-          border: isLow ? "2px solid #ff9800" : "1px solid #e0e0e0",
-          transition:"transform 0.2s, box-shadow 0.2s",
-          "&:hover":{ transform:"translateY(-4px)", boxShadow:6 }
-        }}>
-          <CardMedia component="img" height="120" image={product.image} alt={product.name}
-            sx={{ objectFit:"cover" }} />
-          <CardContent sx={{ p:1.5, pb:0, flexGrow:1 }}>
-            <Typography variant="body2" fontWeight={700} gutterBottom noWrap title={product.name}>
-              {product.name}
-            </Typography>
-            <Chip label={product.category} size="small" sx={{mb:0.5, fontSize:10}} />
-            <Typography variant="h6" color="primary" fontWeight={700}>฿{product.price}</Typography>
+  document.getElementById('s-subtotal').textContent = `฿${subtotal.toFixed(2)}`;
+  if(appliedDiscount>0){
+    document.getElementById('s-discount-row').style.display='flex';
+    document.getElementById('s-discount-label').textContent = `ส่วนลด (${appliedDiscount}%)`;
+    document.getElementById('s-discount-val').textContent = `-฿${discAmt.toFixed(2)}`;
+  } else {
+    document.getElementById('s-discount-row').style.display='none';
+  }
+  document.getElementById('s-after').textContent = `฿${afterDisc.toFixed(2)}`;
+  document.getElementById('s-vat').textContent = `฿${vatAmt.toFixed(2)}`;
+  document.getElementById('s-grand').textContent = `฿${grand.toFixed(2)}`;
+  document.getElementById('pay-amount').textContent = `฿${grand.toFixed(2)}`;
 
-            {/* Stock Progress */}
-            <Box sx={{mt:0.5}}>
-              <Box sx={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-                <Typography variant="caption" color={isLow?"error":"text.secondary"}>
-                  {isLow ? "⚠️ สต็อกใกล้หมด!" : "สต็อก"}
-                </Typography>
-                <Typography variant="caption" fontWeight={700} color={isLow?"error":"text.secondary"}>
-                  {product.stock} ชิ้น
-                </Typography>
-              </Box>
-              <LinearProgress
-                variant="determinate" value={stockPct}
-                color={isLow ? "warning" : "success"}
-                sx={{ height:6, borderRadius:3, mt:0.3 }}
-              />
-            </Box>
-          </CardContent>
-          <CardActions sx={{ p:1.5, pt:1 }}>
-            <Button variant="contained" fullWidth size="small" onClick={onAdd}
-              disabled={product.stock === 0}
-              sx={{ bgcolor:"#1a237e","&:hover":{bgcolor:"#283593"}, fontSize:12 }}
-              startIcon={<span className="material-icons" style={{fontSize:14}}>add_shopping_cart</span>}>
-              {product.stock === 0 ? "หมด" : "เพิ่ม"}
-            </Button>
-          </CardActions>
-        </Card>
-      );
-    }
+  updateChange();
+  return {subtotal,discAmt,afterDisc,vatAmt,grand};
+}
 
-    // ============ Inventory Tab ============
-    function InventoryTab({ products, toggleProduct }) {
-      return (
-        <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ mb:3, color:"#1a237e" }}>
-            📦 จัดการคลังสินค้า
-          </Typography>
+function updateChange(){
+  const grand = parseFloat(document.getElementById('s-grand').textContent.replace('฿',''))||0;
+  const received = parseFloat(document.getElementById('received-input').value)||0;
+  const changeBox = document.getElementById('change-box');
+  if(received>0 && received>=grand){
+    changeBox.style.display='block';
+    document.getElementById('change-val').textContent = `฿${(received-grand).toFixed(2)}`;
+  } else {
+    changeBox.style.display='none';
+  }
+}
 
-          {/* Summary Cards */}
-          <Grid container spacing={2} sx={{ mb:3 }}>
-            {[
-              { label:"สินค้าทั้งหมด", val: products.length, icon:"inventory_2", color:"#1a237e" },
-              { label:"เปิดขาย", val: products.filter(p=>p.active).length, icon:"store", color:"#2e7d32" },
-              { label:"ปิดขาย", val: products.filter(p=>!p.active).length, icon:"store_off", color:"#c62828" },
-              { label:"สต็อกใกล้หมด", val: products.filter(p=>p.stock<=LOW_STOCK_THRESHOLD).length, icon:"warning", color:"#e65100" },
-            ].map(s => (
-              <Grid item xs={6} sm={3} key={s.label}>
-                <Paper sx={{ p:2, borderRadius:3, textAlign:"center", borderTop:`4px solid ${s.color}` }}>
-                  <span className="material-icons" style={{color:s.color, fontSize:32}}>{s.icon}</span>
-                  <Typography variant="h4" fontWeight={700} sx={{color:s.color}}>{s.val}</Typography>
-                  <Typography variant="caption" color="text.secondary">{s.label}</Typography>
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
+function renderCartBadge(){
+  const total = cart.reduce((s,i)=>s+i.qty,0);
+  document.getElementById('cart-badge').textContent = total;
+}
 
-          {/* Inventory Table */}
-          <Paper elevation={3} sx={{ borderRadius:3, overflow:"hidden" }}>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{"& th":{ bgcolor:"#1a237e", color:"white", fontWeight:700 }}}>
-                    <TableCell>สินค้า</TableCell>
-                    <TableCell>หมวดหมู่</TableCell>
-                    <TableCell align="right">ราคา</TableCell>
-                    <TableCell align="center">สต็อกคงเหลือ</TableCell>
-                    <TableCell align="center">สถานะ</TableCell>
-                    <TableCell align="center">เปิด/ปิดขาย</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {products.map(p => {
-                    const isLow = p.stock <= LOW_STOCK_THRESHOLD;
-                    const stockPct = Math.min((p.stock / 50) * 100, 100);
-                    return (
-                      <TableRow key={p.id} sx={{
-                        "&:hover":{ bgcolor:"#f5f5f5" },
-                        opacity: p.active ? 1 : 0.6
-                      }}>
-                        <TableCell>
-                          <Box sx={{ display:"flex", alignItems:"center", gap:1.5 }}>
-                            <Avatar src={p.image} alt={p.name} sx={{ width:40, height:40 }} />
-                            <Typography variant="body2" fontWeight={600}>{p.name}</Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell><Chip label={p.category} size="small" /></TableCell>
-                        <TableCell align="right">
-                          <Typography fontWeight={700} color="primary">฿{p.price}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Box sx={{ minWidth:140 }}>
-                            <Box sx={{ display:"flex", justifyContent:"space-between", mb:0.5 }}>
-                              <Typography variant="caption" color={isLow?"error.main":"text.secondary"}>
-                                {isLow ? "⚠️ ใกล้หมด" : "ปกติ"}
-                              </Typography>
-                              <Typography variant="caption" fontWeight={700}>{p.stock} ชิ้น</Typography>
-                            </Box>
-                            <LinearProgress
-                              variant="determinate" value={stockPct}
-                              color={p.stock === 0 ? "error" : isLow ? "warning" : "success"}
-                              sx={{ height:8, borderRadius:4 }}
-                            />
-                          </Box>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={p.active ? "เปิดขาย" : "ปิดขาย"}
-                            color={p.active ? "success" : "error"}
-                            size="small" variant="filled"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title={p.active ? "คลิกเพื่อปิดขาย" : "คลิกเพื่อเปิดขาย"}>
-                            <Switch
-                              checked={p.active}
-                              onChange={() => toggleProduct(p.id)}
-                              color="success"
-                            />
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        </Box>
-      );
-    }
+function renderAll(){
+  renderProducts();
+  renderCart();
+  renderSummary();
+  renderCartBadge();
+}
 
-    // ============ Helper: Row ============
-    function Row({ label, value, bold, large, color, ...props }) {
-      return (
-        <Box sx={{ display:"flex", justifyContent:"space-between", mb:0.5 }}>
-          <Typography variant={large?"body1":"body2"} fontWeight={bold?700:400} color={color||"text.primary"}>
-            {label}
-          </Typography>
-          <Typography variant={large?"body1":"body2"} fontWeight={bold?700:400} color={color||"text.primary"}>
-            {value}
-          </Typography>
-        </Box>
-      );
-    }
+// ============ DISCOUNT ============
+function applyDiscount(){
+  const code = document.getElementById('discount-input').value.trim().toUpperCase();
+  const pct = DISCOUNT_CODES[code];
+  if(pct){
+    appliedDiscount = pct;
+    showSnack(`🎉 ใช้โค้ด ${code} ลด ${pct}% สำเร็จ!`,'success');
+  } else {
+    showSnack('❌ โค้ดส่วนลดไม่ถูกต้อง','error');
+  }
+  renderAll();
+}
 
-    // ============ Render ============
-    const root = ReactDOM.createRoot(document.getElementById("root"));
-    root.render(<App />);
-  </script>
+document.getElementById('discount-input').addEventListener('keypress',e=>{
+  if(e.key==='Enter') applyDiscount();
+});
+
+// ============ PAY ============
+function handlePay(){
+  if(cart.length===0){ showSnack('⚠️ ตะกร้าว่างเปล่า!','warning'); return; }
+  const grand = parseFloat(document.getElementById('s-grand').textContent.replace('฿',''))||0;
+  const received = parseFloat(document.getElementById('received-input').value)||0;
+  if(received<grand){ showSnack('❌ จำนวนเงินไม่เพียงพอ','error'); return; }
+
+  // ตัดสต็อก
+  cart.forEach(ci=>{
+    const p = products.find(x=>x.id===ci.id);
+    if(p) p.stock -= ci.qty;
+  });
+
+  lastPayData = { grand, received, change: received-grand };
+  showPayDialog(lastPayData);
+}
+
+function showPayDialog({grand,received,change}){
+  document.getElementById('d-total').textContent = `ยอดรวม: ฿${grand.toFixed(2)}`;
+  document.getElementById('d-received').textContent = `รับเงิน: ฿${received.toFixed(2)}`;
+  document.getElementById('d-change').textContent = `💵 เงินทอน: ฿${change.toFixed(2)}`;
+  document.getElementById('d-barcode').textContent = Date.now();
+  document.getElementById('dialog-overlay').classList.add('open');
+}
+
+function finishPay(){
+  document.getElementById('dialog-overlay').classList.remove('open');
+  cart = [];
+  appliedDiscount = 0;
+  document.getElementById('discount-input').value = '';
+  document.getElementById('received-input').value = '';
+  document.getElementById('change-box').style.display = 'none';
+  showSnack('🎉 ชำระเงินสำเร็จ! ขอบคุณที่ใช้บริการ','success');
+  renderAll();
+}
+
+// ============ INVENTORY ============
+function renderInventory(){
+  const total = products.length;
+  const active = products.filter(p=>p.active).length;
+  const inactive = total - active;
+  const low = products.filter(p=>p.stock<=LOW).length;
+
+  document.getElementById('st-total').textContent = total;
+  document.getElementById('st-active').textContent = active;
+  document.getElementById('st-inactive').textContent = inactive;
+  document.getElementById('st-lowstock').textContent = low;
+
+  document.getElementById('inv-tbody').innerHTML = products.map(p=>{
+    const isLow = p.stock<=LOW;
+    const pct = Math.min((p.stock/50)*100,100);
+    const fillClass = p.stock===0?'red':isLow?'orange':'green';
+    const statusChip = p.active
+      ? '<span class="chip chip-success">เปิดขาย</span>'
+      : '<span class="chip chip-error">ปิดขาย</span>';
+    return `
+    <tr class="${p.active?'':'inactive-row'}">
+      <td>
+        <div class="product-mini">
+          <img src="${p.img}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/38/e8eaf6/1a237e?text=🏪'" style="border-radius:8px"/>
+          <span style="font-weight:600">${p.name}</span>
+        </div>
+      </td>
+      <td><span class="chip chip-info">${p.cat}</span></td>
+      <td style="text-align:right;font-weight:700;color:var(--primary)">฿${p.price}</td>
+      <td>
+        <div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:3px">
+          <span style="color:${isLow?'var(--warning)':'var(--text-muted)'}">${isLow?'⚠️ ใกล้หมด':'ปกติ'}</span>
+          <span style="font-weight:700">${p.stock} ชิ้น</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill ${fillClass}" style="width:${pct}%"></div></div>
+      </td>
+      <td style="text-align:center">${statusChip}</td>
+      <td style="text-align:center">
+        <label class="switch">
+          <input type="checkbox" ${p.active?'checked':''} onchange="toggleProduct(${p.id})"/>
+          <span class="slider"></span>
+        </label>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleProduct(id){
+  const p = products.find(x=>x.id===id);
+  if(p){
+    p.active = !p.active;
+    showSnack(`${p.active?'✅ เปิด':'🔴 ปิด'}ขาย "${p.name}" แล้ว`, p.active?'success':'info');
+    renderInventory();
+    renderProducts();
+  }
+}
+
+// ============ SNACKBAR ============
+let snackTimer;
+function showSnack(msg, type='info'){
+  const el = document.getElementById('snackbar');
+  el.textContent = msg;
+  el.className = `snackbar ${type} show`;
+  clearTimeout(snackTimer);
+  snackTimer = setTimeout(()=>{ el.classList.remove('show'); }, 3000);
+}
+
+// ============ INIT ============
+renderAll();
+</script>
 </body>
 </html>
