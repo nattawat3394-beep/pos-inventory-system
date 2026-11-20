@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบบริหารจัดการคำสั่งซื้อและคลังสินค้าหน้าร้าน</title>
+
+  <!-- MUI + React CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.16.7/umd/material-ui.production.min.js"></script>
+
+  <!-- Roboto Font + Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Roboto', sans-serif; background: #f5f5f5; }
+    #root { min-height: 100vh; }
+    .barcode-font { font-family: 'Libre Barcode 128', cursive; font-size: 48px; letter-spacing: 2px; }
+    @import url('https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap');
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      AppBar, Toolbar, Typography, Badge, IconButton, Box, Grid,
+      Card, CardMedia, CardContent, CardActions, Button,
+      Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
+      Paper, Switch, TextField, Snackbar, Alert, LinearProgress,
+      Chip, Divider, Dialog, DialogTitle, DialogContent, DialogActions,
+      FormControlLabel, Tooltip, Container, Avatar
+    } = MaterialUI;
+
+    // ============ ข้อมูลสินค้าเริ่มต้น ============
+    const initialProducts = [
+      { id: 1, name: "โค้กขวด 500ml", price: 25, stock: 30, image: "https://images.unsplash.com/photo-1629203851122-3726ecdf080e?w=200&q=80", active: true, category: "เครื่องดื่ม" },
+      { id: 2, name: "น้ำดื่มตราช้าง", price: 10, stock: 4, image: "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=200&q=80", active: true, category: "เครื่องดื่ม" },
+      { id: 3, name: "มาม่าต้มยำ", price: 7, stock: 50, image: "https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?w=200&q=80", active: true, category: "อาหาร" },
+      { id: 4, name: "ขนมปังแซนวิช", price: 35, stock: 3, image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&q=80", active: false, category: "อาหาร" },
+      { id: 5, name: "ลูกอมสตรอเบอร์รี่", price: 5, stock: 2, image: "https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=200&q=80", active: true, category: "ขนม" },
+      { id: 6, name: "กาแฟกระป๋อง", price: 20, stock: 15, image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=200&q=80", active: true, category: "เครื่องดื่ม" },
+      { id: 7, name: "คิทแคทช็อกโกแลต", price: 30, stock: 8, image: "https://images.unsplash.com/photo-1575377427642-087cf684f29d?w=200&q=80", active: true, category: "ขนม" },
+      { id: 8, name: "มันฝรั่งทอด", price: 20, stock: 1, image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&q=80", active: true, category: "ขนม" },
+    ];
+
+    const DISCOUNT_CODES = { "SALE10": 10, "LUCKY20": 20, "VIP50": 50 };
+    const VAT_RATE = 0.07;
+    const LOW_STOCK_THRESHOLD = 5;
+
+    // ============ MAIN APP ============
+    function App() {
+      const [products, setProducts] = React.useState(initialProducts);
+      const [cart, setCart] = React.useState([]);
+      const [discountCode, setDiscountCode] = React.useState("");
+      const [appliedDiscount, setAppliedDiscount] = React.useState(0);
+      const [receivedAmount, setReceivedAmount] = React.useState("");
+      const [snackbar, setSnackbar] = React.useState({ open: false, msg: "", severity: "success" });
+      const [payDialog, setPayDialog] = React.useState(false);
+      const [tab, setTab] = React.useState("shop"); // shop | inventory
+
+      // ---- Cart logic ----
+      const addToCart = (product) => {
+        if (!product.active) return;
+        setCart(prev => {
+          const found = prev.find(i => i.id === product.id);
+          if (found) {
+            if (found.qty >= product.stock) {
+              setSnackbar({ open: true, msg: `สินค้า "${product.name}" หมดสต็อก!`, severity: "warning" });
+              return prev;
+            }
+            return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
+          }
+          return [...prev, { ...product, qty: 1 }];
+        });
+        setSnackbar({ open: true, msg: `เพิ่ม "${product.name}" ลงตะกร้าแล้ว ✓`, severity: "success" });
+      };
+
+      const removeFromCart = (id) => setCart(prev => {
+        const found = prev.find(i => i.id === id);
+        if (found && found.qty > 1) return prev.map(i => i.id === id ? { ...i, qty: i.qty - 1 } : i);
+        return prev.filter(i => i.id !== id);
+      });
+
+      const deleteFromCart = (id) => setCart(prev => prev.filter(i => i.id !== id));
+
+      const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+      const discountAmount = (cartTotal * appliedDiscount) / 100;
+      const afterDiscount = cartTotal - discountAmount;
+      const vatAmount = afterDiscount * VAT_RATE;
+      const grandTotal = afterDiscount + vatAmount;
+      const change = parseFloat(receivedAmount) - grandTotal;
+      const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+
+      const applyDiscount = () => {
+        const pct = DISCOUNT_CODES[discountCode.trim().toUpperCase()];
+        if (pct) {
+          setAppliedDiscount(pct);
+          setSnackbar({ open: true, msg: `ใช้โค้ด ${discountCode.toUpperCase()} ลด ${pct}% สำเร็จ! 🎉`, severity: "success" });
+        } else {
+          setSnackbar({ open: true, msg: "โค้ดส่วนลดไม่ถูกต้อง", severity: "error" });
+        }
+      };
+
+      const toggleProduct = (id) => setProducts(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+
+      const handlePay = () => {
+        if (cart.length === 0) { setSnackbar({ open: true, msg: "ตะกร้าว่างเปล่า!", severity: "warning" }); return; }
+        if (!receivedAmount || parseFloat(receivedAmount) < grandTotal) {
+          setSnackbar({ open: true, msg: "จำนวนเงินที่รับไม่เพียงพอ", severity: "error" }); return;
+        }
+        // ตัดสต็อก
+        setProducts(prev => prev.map(p => {
+          const ci = cart.find(c => c.id === p.id);
+          return ci ? { ...p, stock: p.stock - ci.qty } : p;
+        }));
+        setPayDialog(true);
+      };
+
+      const finishPay = () => {
+        setCart([]); setDiscountCode(""); setAppliedDiscount(0); setReceivedAmount("");
+        setPayDialog(false);
+        setSnackbar({ open: true, msg: "ชำระเงินสำเร็จ! ขอบคุณที่ใช้บริการ 🎉", severity: "success" });
+      };
+
+      // ============ UI ============
+      return (
+        <Box sx={{ flexGrow: 1 }}>
+          {/* ===== AppBar ===== */}
+          <AppBar position="sticky" sx={{ background: "linear-gradient(135deg,#1a237e,#283593)" }}>
+            <Toolbar>
+              <span className="material-icons" style={{ marginRight: 8, fontSize: 28 }}>storefront</span>
+              <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 700, fontSize: { xs: "0.9rem", sm: "1.1rem" } }}>
+                ระบบ POS &amp; คลังสินค้าหน้าร้าน
+              </Typography>
+              <Tooltip title="สินค้าในร้าน">
+                <Button color={tab==="shop"?"inherit":"default"} onClick={()=>setTab("shop")}
+                  sx={{ color:"white", fontWeight: tab==="shop"?"bold":"normal", mr:1, fontSize:{xs:"0.75rem",sm:"0.9rem"} }}
+                  startIcon={<span className="material-icons">shopping_bag</span>}>
+                  หน้าร้าน
+                </Button>
+              </Tooltip>
+              <Tooltip title="จัดการคลังสินค้า">
+                <Button color={tab==="inventory"?"inherit":"default"} onClick={()=>setTab("inventory")}
+                  sx={{ color:"white", fontWeight: tab==="inventory"?"bold":"normal", mr:2, fontSize:{xs:"0.75rem",sm:"0.9rem"} }}
+                  startIcon={<span className="material-icons">inventory_2</span>}>
+                  คลังสินค้า
+                </Button>
+              </Tooltip>
+              <Tooltip title="ตะกร้าสินค้า">
+                <IconButton color="inherit" onClick={()=>setTab("shop")}>
+                  <Badge badgeContent={cartCount} color="error">
+                    <span className="material-icons">shopping_cart</span>
+                  </Badge>
+                </IconButton>
+              </Tooltip>
+            </Toolbar>
+          </AppBar>
+
+          <Container maxWidth="xl" sx={{ py: 3 }}>
+            {tab === "shop" ? (
+              <ShopTab
+                products={products} cart={cart}
+                addToCart={addToCart} removeFromCart={removeFromCart} deleteFromCart={deleteFromCart}
+                discountCode={discountCode} setDiscountCode={setDiscountCode}
+                appliedDiscount={appliedDiscount} applyDiscount={applyDiscount}
+                receivedAmount={receivedAmount} setReceivedAmount={setReceivedAmount}
+                cartTotal={cartTotal} discountAmount={discountAmount}
+                afterDiscount={afterDiscount} vatAmount={vatAmount}
+                grandTotal={grandTotal} change={change} handlePay={handlePay}
+              />
+            ) : (
+              <InventoryTab products={products} toggleProduct={toggleProduct} />
+            )}
+          </Container>
+
+          {/* ===== Snackbar ===== */}
+          <Snackbar open={snackbar.open} autoHideDuration={3000}
+            onClose={()=>setSnackbar(s=>({...s,open:false}))}
+            anchorOrigin={{ vertical:"bottom", horizontal:"right" }}>
+            <Alert severity={snackbar.severity} variant="filled" sx={{ width:"100%" }}>
+              {snackbar.msg}
+            </Alert>
+          </Snackbar>
+
+          {/* ===== Pay Success Dialog ===== */}
+          <Dialog open={payDialog} onClose={finishPay} maxWidth="xs" fullWidth>
+            <DialogTitle sx={{ textAlign:"center", bgcolor:"#1a237e", color:"white" }}>
+              <span className="material-icons" style={{fontSize:48,display:"block"}}>check_circle</span>
+              ชำระเงินสำเร็จ!
+            </DialogTitle>
+            <DialogContent sx={{ pt:3, textAlign:"center" }}>
+              <Typography variant="h5" color="primary" fontWeight={700}>ยอดรวม: ฿{grandTotal.toFixed(2)}</Typography>
+              <Typography variant="h6" sx={{mt:1}}>รับเงิน: ฿{parseFloat(receivedAmount||0).toFixed(2)}</Typography>
+              <Typography variant="h4" color="success.main" fontWeight={700} sx={{mt:1}}>
+                เงินทอน: ฿{change >= 0 ? change.toFixed(2) : "0.00"}
+              </Typography>
+              {/* Barcode */}
+              <Box sx={{mt:3, p:2, bgcolor:"white", borderRadius:2, border:"1px solid #ddd"}}>
+                <Typography variant="caption" color="text.secondary">ใบเสร็จ</Typography>
+                <div style={{fontFamily:"monospace", fontSize:14, letterSpacing:4, marginTop:4, overflow:"hidden"}}>
+                  {"||||| |||| ||| || |||||| ||| |||| |||||"}
+                </div>
+                <Typography variant="caption">{Date.now()}</Typography>
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ justifyContent:"center", pb:3 }}>
+              <Button variant="contained" onClick={finishPay} size="large"
+                sx={{bgcolor:"#1a237e","&:hover":{bgcolor:"#283593"}, px:5}}>
+                เสร็จสิ้น
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      );
+    }
+
+    // ============ Shop Tab ============
+    function ShopTab({ products, cart, addToCart, removeFromCart, deleteFromCart,
+      discountCode, setDiscountCode, appliedDiscount, applyDiscount,
+      receivedAmount, setReceivedAmount,
+      cartTotal, discountAmount, afterDiscount, vatAmount, grandTotal, change, handlePay }) {
+
+      const activeProducts = products.filter(p => p.active);
+
+      return (
+        <Grid container spacing={3}>
+          {/* ===== สินค้า ===== */}
+          <Grid item xs={12} md={7}>
+            <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color:"#1a237e" }}>
+              <span className="material-icons" style={{verticalAlign:"middle",mr:1}}>storefront</span>
+              สินค้าทั้งหมด ({activeProducts.length} รายการ)
+            </Typography>
+            <Grid container spacing={2}>
+              {activeProducts.map(p => (
+                <Grid item xs={6} sm={4} md={4} key={p.id}>
+                  <ProductCard product={p} onAdd={() => addToCart(p)} />
+                </Grid>
+              ))}
+              {activeProducts.length === 0 && (
+                <Grid item xs={12}>
+                  <Paper sx={{p:4, textAlign:"center", color:"text.secondary"}}>
+                    <span className="material-icons" style={{fontSize:48}}>inventory_2</span>
+                    <Typography>ไม่มีสินค้าที่เปิดขาย</Typography>
+                  </Paper>
+                </Grid>
+              )}
+            </Grid>
+          </Grid>
+
+          {/* ===== ตะกร้า + ชำระเงิน ===== */}
+          <Grid item xs={12} md={5}>
+            <Paper elevation={3} sx={{ p: 2, borderRadius: 3, position:"sticky", top:80 }}>
+              <Typography variant="h6" fontWeight={700} sx={{ mb: 2, color:"#1a237e" }}>
+                🛒 ตะกร้าสินค้า
+              </Typography>
+
+              {/* Cart Table */}
+              <TableContainer sx={{ maxHeight: 260 }}>
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow sx={{"& th":{ bgcolor:"#1a237e", color:"white", fontWeight:700 }}}>
+                      <TableCell>สินค้า</TableCell>
+                      <TableCell align="center">จำนวน</TableCell>
+                      <TableCell align="right">ราคา</TableCell>
+                      <TableCell align="center">ลบ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {cart.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} align="center" sx={{color:"text.secondary", py:3}}>
+                          ยังไม่มีสินค้าในตะกร้า
+                        </TableCell>
+                      </TableRow>
+                    ) : cart.map(item => (
+                      <TableRow key={item.id} sx={{"&:hover":{bgcolor:"#f5f5f5"}}}>
+                        <TableCell>
+                          <Typography variant="body2" noWrap sx={{maxWidth:120}}>{item.name}</Typography>
+                          <Typography variant="caption" color="text.secondary">฿{item.price}</Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ display:"flex", alignItems:"center", justifyContent:"center", gap:0.5 }}>
+                            <IconButton size="small" onClick={()=>removeFromCart(item.id)}
+                              sx={{color:"error.main", p:0.3}}>
+                              <span className="material-icons" style={{fontSize:16}}>remove</span>
+                            </IconButton>
+                            <Typography variant="body2" fontWeight={700} sx={{minWidth:20, textAlign:"center"}}>
+                              {item.qty}
+                            </Typography>
+                            <IconButton size="small" onClick={()=>addToCart(item)}
+                              sx={{color:"success.main", p:0.3}}>
+                              <span className="material-icons" style={{fontSize:16}}>add</span>
+                            </IconButton>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" fontWeight={700}>
+                            ฿{(item.price * item.qty).toFixed(2)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <IconButton size="small" onClick={()=>deleteFromCart(item.id)}
+                            sx={{color:"error.main"}}>
+                            <span className="material-icons" style={{fontSize:18}}>delete</span>
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Discount Code */}
+              <Box sx={{ display:"flex", gap:1, mb:2 }}>
+                <TextField
+                  size="small" label="โค้ดส่วนลด" fullWidth
+                  value={discountCode} onChange={e=>setDiscountCode(e.target.value)}
+                  placeholder="เช่น SALE10, LUCKY20, VIP50"
+                  onKeyPress={e=>e.key==="Enter" && applyDiscount()}
+                />
+                <Button variant="outlined" onClick={applyDiscount} sx={{whiteSpace:"nowrap", minWidth:80}}>
+                  ใช้โค้ด
+                </Button>
+              </Box>
+
+              {/* Summary */}
+              <Box sx={{ bgcolor:"#f8f9fa", borderRadius:2, p:2 }}>
+                <Row label="ราคารวม" value={`฿${cartTotal.toFixed(2)}`} />
+                {appliedDiscount > 0 && (
+                  <Row label={`ส่วนลด (${appliedDiscount}%)`} value={`-฿${discountAmount.toFixed(2)}`} color="error.main" />
+                )}
+                <Row label="หลังหักส่วนลด" value={`฿${afterDiscount.toFixed(2)}`} />
+                <Row label="ภาษีมูลค่าเพิ่ม (VAT 7%)" value={`฿${vatAmount.toFixed(2)}`} color="warning.main" />
+                <Divider sx={{my:1}} />
+                <Row label="ยอดรวมสุทธิ" value={`฿${grandTotal.toFixed(2)}`} bold large color="#1a237e" />
+              </Box>
+
+              {/* Received Amount */}
+              <TextField
+                fullWidth size="small" label="รับเงิน (บาท)" type="number"
+                value={receivedAmount} onChange={e=>setReceivedAmount(e.target.value)}
+                sx={{ mt:2 }} inputProps={{ min:0 }}
+              />
+
+              {receivedAmount && parseFloat(receivedAmount) >= grandTotal && (
+                <Box sx={{ mt:1, p:1.5, bgcolor:"#e8f5e9", borderRadius:2 }}>
+                  <Typography fontWeight={700} color="success.main" fontSize={18}>
+                    💵 เงินทอน: ฿{change.toFixed(2)}
+                  </Typography>
+                </Box>
+              )}
+
+              <Button variant="contained" fullWidth size="large" onClick={handlePay}
+                sx={{ mt:2, py:1.5, fontWeight:700, fontSize:16,
+                  background:"linear-gradient(135deg,#1a237e,#283593)",
+                  "&:hover":{background:"linear-gradient(135deg,#283593,#1a237e)"} }}
+                startIcon={<span className="material-icons">point_of_sale</span>}>
+                ชำระเงิน ฿{grandTotal.toFixed(2)}
+              </Button>
+            </Paper>
+          </Grid>
+        </Grid>
+      );
+    }
+
+    // ============ Product Card ============
+    function ProductCard({ product, onAdd }) {
+      const isLow = product.stock <= LOW_STOCK_THRESHOLD;
+      const stockPct = Math.min((product.stock / 50) * 100, 100);
+
+      return (
+        <Card elevation={2} sx={{
+          borderRadius:3, height:"100%", display:"flex", flexDirection:"column",
+          border: isLow ? "2px solid #ff9800" : "1px solid #e0e0e0",
+          transition:"transform 0.2s, box-shadow 0.2s",
+          "&:hover":{ transform:"translateY(-4px)", boxShadow:6 }
+        }}>
+          <CardMedia component="img" height="120" image={product.image} alt={product.name}
+            sx={{ objectFit:"cover" }} />
+          <CardContent sx={{ p:1.5, pb:0, flexGrow:1 }}>
+            <Typography variant="body2" fontWeight={700} gutterBottom noWrap title={product.name}>
+              {product.name}
+            </Typography>
+            <Chip label={product.category} size="small" sx={{mb:0.5, fontSize:10}} />
+            <Typography variant="h6" color="primary" fontWeight={700}>฿{product.price}</Typography>
+
+            {/* Stock Progress */}
+            <Box sx={{mt:0.5}}>
+              <Box sx={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                <Typography variant="caption" color={isLow?"error":"text.secondary"}>
+                  {isLow ? "⚠️ สต็อกใกล้หมด!" : "สต็อก"}
+                </Typography>
+                <Typography variant="caption" fontWeight={700} color={isLow?"error":"text.secondary"}>
+                  {product.stock} ชิ้น
+                </Typography>
+              </Box>
+              <LinearProgress
+                variant="determinate" value={stockPct}
+                color={isLow ? "warning" : "success"}
+                sx={{ height:6, borderRadius:3, mt:0.3 }}
+              />
+            </Box>
+          </CardContent>
+          <CardActions sx={{ p:1.5, pt:1 }}>
+            <Button variant="contained" fullWidth size="small" onClick={onAdd}
+              disabled={product.stock === 0}
+              sx={{ bgcolor:"#1a237e","&:hover":{bgcolor:"#283593"}, fontSize:12 }}
+              startIcon={<span className="material-icons" style={{fontSize:14}}>add_shopping_cart</span>}>
+              {product.stock === 0 ? "หมด" : "เพิ่ม"}
+            </Button>
+          </CardActions>
+        </Card>
+      );
+    }
+
+    // ============ Inventory Tab ============
+    function InventoryTab({ products, toggleProduct }) {
+      return (
+        <Box>
+          <Typography variant="h6" fontWeight={700} sx={{ mb:3, color:"#1a237e" }}>
+            📦 จัดการคลังสินค้า
+          </Typography>
+
+          {/* Summary Cards */}
+          <Grid container spacing={2} sx={{ mb:3 }}>
+            {[
+              { label:"สินค้าทั้งหมด", val: products.length, icon:"inventory_2", color:"#1a237e" },
+              { label:"เปิดขาย", val: products.filter(p=>p.active).length, icon:"store", color:"#2e7d32" },
+              { label:"ปิดขาย", val: products.filter(p=>!p.active).length, icon:"store_off", color:"#c62828" },
+              { label:"สต็อกใกล้หมด", val: products.filter(p=>p.stock<=LOW_STOCK_THRESHOLD).length, icon:"warning", color:"#e65100" },
+            ].map(s => (
+              <Grid item xs={6} sm={3} key={s.label}>
+                <Paper sx={{ p:2, borderRadius:3, textAlign:"center", borderTop:`4px solid ${s.color}` }}>
+                  <span className="material-icons" style={{color:s.color, fontSize:32}}>{s.icon}</span>
+                  <Typography variant="h4" fontWeight={700} sx={{color:s.color}}>{s.val}</Typography>
+                  <Typography variant="caption" color="text.secondary">{s.label}</Typography>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* Inventory Table */}
+          <Paper elevation={3} sx={{ borderRadius:3, overflow:"hidden" }}>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow sx={{"& th":{ bgcolor:"#1a237e", color:"white", fontWeight:700 }}}>
+                    <TableCell>สินค้า</TableCell>
+                    <TableCell>หมวดหมู่</TableCell>
+                    <TableCell align="right">ราคา</TableCell>
+                    <TableCell align="center">สต็อกคงเหลือ</TableCell>
+                    <TableCell align="center">สถานะ</TableCell>
+                    <TableCell align="center">เปิด/ปิดขาย</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {products.map(p => {
+                    const isLow = p.stock <= LOW_STOCK_THRESHOLD;
+                    const stockPct = Math.min((p.stock / 50) * 100, 100);
+                    return (
+                      <TableRow key={p.id} sx={{
+                        "&:hover":{ bgcolor:"#f5f5f5" },
+                        opacity: p.active ? 1 : 0.6
+                      }}>
+                        <TableCell>
+                          <Box sx={{ display:"flex", alignItems:"center", gap:1.5 }}>
+                            <Avatar src={p.image} alt={p.name} sx={{ width:40, height:40 }} />
+                            <Typography variant="body2" fontWeight={600}>{p.name}</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell><Chip label={p.category} size="small" /></TableCell>
+                        <TableCell align="right">
+                          <Typography fontWeight={700} color="primary">฿{p.price}</Typography>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ minWidth:140 }}>
+                            <Box sx={{ display:"flex", justifyContent:"space-between", mb:0.5 }}>
+                              <Typography variant="caption" color={isLow?"error.main":"text.secondary"}>
+                                {isLow ? "⚠️ ใกล้หมด" : "ปกติ"}
+                              </Typography>
+                              <Typography variant="caption" fontWeight={700}>{p.stock} ชิ้น</Typography>
+                            </Box>
+                            <LinearProgress
+                              variant="determinate" value={stockPct}
+                              color={p.stock === 0 ? "error" : isLow ? "warning" : "success"}
+                              sx={{ height:8, borderRadius:4 }}
+                            />
+                          </Box>
+                        </TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            label={p.active ? "เปิดขาย" : "ปิดขาย"}
+                            color={p.active ? "success" : "error"}
+                            size="small" variant="filled"
+                          />
+                        </TableCell>
+                        <TableCell align="center">
+                          <Tooltip title={p.active ? "คลิกเพื่อปิดขาย" : "คลิกเพื่อเปิดขาย"}>
+                            <Switch
+                              checked={p.active}
+                              onChange={() => toggleProduct(p.id)}
+                              color="success"
+                            />
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Box>
+      );
+    }
+
+    // ============ Helper: Row ============
+    function Row({ label, value, bold, large, color, ...props }) {
+      return (
+        <Box sx={{ display:"flex", justifyContent:"space-between", mb:0.5 }}>
+          <Typography variant={large?"body1":"body2"} fontWeight={bold?700:400} color={color||"text.primary"}>
+            {label}
+          </Typography>
+          <Typography variant={large?"body1":"body2"} fontWeight={bold?700:400} color={color||"text.primary"}>
+            {value}
+          </Typography>
+        </Box>
+      );
+    }
+
+    // ============ Render ============
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
